@@ -1,0 +1,6 @@
+{
+  "pack": {
+    "pack_format": 15,
+    "description": "Adds the MQTT Client API to ComputerCraft's ROM"
+  }
+}
