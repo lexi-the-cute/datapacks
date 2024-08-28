@@ -1,4 +1,5 @@
-local host = "mqtt.foxgirl.land"
+local host = "mqtt.example.com"
+local mc = "example-name"
 local mqtt = require("mqtt")
 
 local keep_alive = 60
@@ -18,7 +19,7 @@ else
 end
 
 local user_properties = {
-    id = computer_id
+    computer_id = computer_id
 }
 
 local uri
@@ -38,10 +39,25 @@ local client = mqtt.client {
     version = mqtt.v50,
 }
 
-local topic = "cc/" .. tostring(computer_id) .. "/example"
+user_properties["id"] = client.args.id
+local topic = mc .. "/cc/" .. tostring(computer_id) .. "/example"
 local topic_publish = topic .. "/" .. client.args.id
 local topic_subscribe = topic .. "/#"
 print("> Created MQTT client:", client.args.id)
+
+local function publish(topic, content_type, payload)
+    assert(client:publish {
+        topic = topic,
+        payload = payload,
+        qos = 1,
+        retain = false,
+        properties = {
+            payload_format_indicator = 1,
+            content_type = content_type,
+        },
+        user_properties = user_properties
+    })
+end
 
 client:on {
     connect = function(connack)
@@ -64,18 +80,8 @@ client:on {
             print("> Subscribed to: " .. topic_subscribe)
 
             -- publish test message
-            print('> Publishing test message "' .. message .. '" to "' .. topic_publish .. '" topic...')
-            assert(client:publish {
-                topic = topic_publish,
-                payload = message,
-                qos = 1,
-                retain = false,
-                properties = {
-					payload_format_indicator = 1,
-					content_type = "text/plain",
-				},
-                user_properties = user_properties
-            })
+            --print('> Publishing test message "' .. message .. '" to "' .. topic_publish .. '" topic...')
+            --publish(topic_publish, "text/plain", message)
             print('----------')
         end })
     end,
@@ -88,18 +94,25 @@ client:on {
         end
 
         if msg.payload == "PING" then
-            assert(client:publish {
-                topic = topic_publish,
-                payload = "PONG",
-                user_properties = user_properties,
-                retain = false,
-                qos = 0
-            })
+            publish(topic_publish, "text/plain", "PONG")
+        end
+
+        if msg.payload == "gps" then
+            local x, y, z = gps.locate()
+            local dimension = dimension.locate()
+            local message = {
+                gps = {x = x, y = y, z = z},
+                dimension = dimension
+            }
+
+            publish(topic_publish, "application/json", textutils.serializeJSON(message, { unicode_strings = true }))
         end
 
         if msg.payload == "disconnect" then
             print('----------')
             print("Disconnecting...")
+            
+            publish(topic_publish, "text/plain", "disconnecting...")
             assert(client:disconnect())
         end
     end,
